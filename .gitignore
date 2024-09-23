@@ -1,0 +1,41 @@
+# Environment files
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg
+*.egg-info/
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# Virtual Environments
+venv/
+.venv/
+
+# IDE/Editor Specific
+.vscode/
+.idea/
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Compiled Code
+*.class
+*.o
+*.so
+
+# Node.js
+node_modules/
+
+# Coverage Reports
+coverage/
