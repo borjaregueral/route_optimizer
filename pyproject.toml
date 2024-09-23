@@ -16,6 +16,8 @@ python-dotenv = "^1.0.1"
 requests = "^2.32.3"
 pandas = "^2.2.3"
 pyspark = "^3.5.2"
+delta-spark = "^3.2.0"
+faker = "^29.0.0"
 
 
 [tool.poetry.group.dev.dependencies]
