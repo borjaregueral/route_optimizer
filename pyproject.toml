@@ -15,9 +15,14 @@ boto3 = "^1.35.24"
 python-dotenv = "^1.0.1"
 requests = "^2.32.3"
 pandas = "^2.2.3"
-pyspark = "^3.5.2"
-delta-spark = "^3.2.0"
+pyspark = "^3.4.1" 
 faker = "^29.0.0"
+delta-spark = "^2.3.0"
+
+# Kinesis Connector and AWS SDK Dependencies
+spark-sql-kinesis = {url = "https://repo1.maven.org/maven2/org/apache/spark/spark-sql-kinesis_2.12/3.2.0/spark-sql-kinesis_2.12-3.2.0.jar"}
+aws-java-sdk-kinesis = {url = "https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-kinesis/1.12.364/aws-java-sdk-kinesis-1.12.364.jar"}
+hadoop-aws = {url = "https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.2/hadoop-aws-3.3.2.jar"}
 
 
 [tool.poetry.group.dev.dependencies]
@@ -26,3 +31,4 @@ ipykernel = "^6.29.5"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
