@@ -1,7 +1,8 @@
 # Environment files
 .env
 # Spark libraries
-.jars
+jars/
+data/
 
 # Ignore local JAR files
 /Users/borja/Documents/Somniumrema/projects/de/route_optimizer/jars/
