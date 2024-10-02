@@ -3,6 +3,9 @@
 # Spark libraries
 .jars
 
+# Ignore local JAR files
+/Users/borja/Documents/Somniumrema/projects/de/route_optimizer/jars/
+
 # Python
 __pycache__/
 *.py[cod]
