@@ -44,4 +44,4 @@ Thumbs.db
 node_modules/
 
 # Coverage Reports
-coverage/
+coverage/jars/aws-java-sdk-bundle-1.11.1026.jar
