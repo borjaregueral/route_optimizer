@@ -23,6 +23,7 @@ delta-spark = "^2.3.0"
 #spark-sql-kinesis = {url = "https://repo1.maven.org/maven2/org/apache/spark/spark-sql-kinesis_2.12/3.2.0/spark-sql-kinesis_2.12-3.2.0.jar"}
 #aws-java-sdk-kinesis = {url = "https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-kinesis/1.12.364/aws-java-sdk-kinesis-1.12.364.jar"}
 #hadoop-aws = {url = "https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.2/hadoop-aws-3.3.2.jar"}
+ipython-sql = "^0.5.0"
 
 
 [tool.poetry.group.dev.dependencies]
