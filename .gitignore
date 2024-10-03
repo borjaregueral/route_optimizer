@@ -7,6 +7,9 @@ data/
 # Ignore local JAR files
 /Users/borja/Documents/Somniumrema/projects/de/route_optimizer/jars/
 
+# Ignore Spark warehouse directory
+notebooks/spark-warehouse/flattened_polylines_table/
+
 # Python
 __pycache__/
 *.py[cod]
