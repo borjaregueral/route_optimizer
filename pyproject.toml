@@ -15,7 +15,7 @@ boto3 = "^1.35.24"
 python-dotenv = "^1.0.1"
 requests = "^2.32.3"
 pandas = "^2.2.3"
-pyspark = "^3.4.0" 
+pyspark = "^3.4.3" 
 faker = "^29.0.0"
 delta-spark = "^2.3.0"
 
@@ -24,6 +24,14 @@ delta-spark = "^2.3.0"
 #aws-java-sdk-kinesis = {url = "https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-kinesis/1.12.364/aws-java-sdk-kinesis-1.12.364.jar"}
 #hadoop-aws = {url = "https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.2/hadoop-aws-3.3.2.jar"}
 ipython-sql = "^0.5.0"
+findspark = "^2.0.1"
+tenacity = "^9.0.0"
+pyarrow = "^17.0.0"
+docx = "^0.2.4"
+python-docx = "^1.1.2"
+aws-glue-sessions = "^1.0.7"
+black = "^24.8.0"
+prefect = "^3.0.4"
 
 
 [tool.poetry.group.dev.dependencies]
