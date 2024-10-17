@@ -16,8 +16,8 @@ class SparkSessionManager:
         app_name: str,
         driver_memory: str = "4g",
         executor_memory: str = "4g",
-        executor_cores: str = "16",
-        executor_instances: str = "16",
+        executor_cores: str = "4",
+        executor_instances: str = "4",
         memory_overhead: str = "4g",
         shuffle_partitions: str = "500",
         connection_timeout: str = "5000",
@@ -25,8 +25,8 @@ class SparkSessionManager:
         connection_max: str = "500",
         metrics_reporting: str = "false",
         broadcast_timeout: str = "600",
-        auto_broadcast_threshold: str = "100MB",
-        max_to_string_fields: str = "1000",
+        auto_broadcast_threshold: str = "1000MB",
+        max_to_string_fields: str = "1500",
         multipart_size: str = "104857600",
         fast_upload: str = "true",
         fast_upload_buffer: str = "disk",
@@ -71,7 +71,7 @@ class SparkSessionManager:
                     .config("spark.hadoop.fs.s3a.fast.upload.active.blocks", fast_upload_active_blocks) 
                     .config("spark.hadoop.fs.s3a.fast.upload.active.blocks.threshold", fast_upload_active_blocks_threshold) 
                     .config("spark.hadoop.fs.s3a.fast.upload.buffer.size", fast_upload_buffer_size) 
-                    .config("spark.sql.adaptive.enabled", "false")
+                    .config("spark.sql.adaptive.enabled", "false") 
                     .getOrCreate()
                 )
 
@@ -82,3 +82,4 @@ class SparkSessionManager:
                 raise
 
         return self.spark
+

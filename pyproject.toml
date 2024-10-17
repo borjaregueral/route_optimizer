@@ -32,6 +32,8 @@ python-docx = "^1.1.2"
 aws-glue-sessions = "^1.0.7"
 black = "^24.8.0"
 prefect = "^3.0.4"
+jupyter = "^1.1.1"
+geopy = "^2.4.1"
 
 
 [tool.poetry.group.dev.dependencies]

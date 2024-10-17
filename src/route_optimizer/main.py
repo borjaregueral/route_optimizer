@@ -1,522 +1,288 @@
-# import logging
-# from pyspark.sql.types import StructType, StructField, StringType, DoubleType
-# from route_optimizer.awsmanager import AWSSessionManager
-# from route_optimizer.consumer import StreamReader
-# from route_optimizer.sparkmanager import SparkSessionManager
-
-# # Set up the logger
-# logger = logging.getLogger(__name__)
-# logging.basicConfig(level=logging.INFO)
-
-# def main():
-#     # Initialize AWS Session Manager
-#     aws_session = AWSSessionManager(env_file="path/to/.env")
-#     logger.info("AWS Session Manager initialized.")
-
-#     # Verify AWS Kinesis and S3 Clients
-#     kinesis_client = aws_session.kinesis_client
-#     s3_client = aws_session.s3_client
-#     logger.info("AWS Kinesis and S3 clients initialized.")
-
-#     # AWS credentials
-#     aws_credentials = {
-#         "aws_access_key_id": aws_session.aws_credentials["aws_access_key_id"],
-#         "aws_secret_access_key": aws_session.aws_credentials["aws_secret_access_key"],
-#         "aws_session_token": aws_session.aws_credentials["aws_session_token"],
-#         "aws_region": aws_session.aws_credentials["aws_region"]
-#     }
-
-#     # Initialize Spark session
-#     spark_manager = SparkSessionManager(aws_credentials=aws_credentials)
-#     spark = spark_manager.spark
-#     logger.info("Spark session initialized.")
-
-#     # Define the schema for the DataFrame
-#     schema = StructType([
-#         StructField("order_id", StringType(), True),
-#         StructField("customer_id", StringType(), True),
-#         StructField("total_weight", DoubleType(), True),
-#         StructField("total_volume", DoubleType(), True),
-#         StructField("total_price", DoubleType(), True),
-#         StructField("order_timestamp", StringType(), True),
-#         StructField("status", StringType(), True),
-#         StructField("lat", DoubleType(), True),
-#         StructField("lon", DoubleType(), True)
-#     ])
-
-#     stream_name = "OrderStreamForDispatching"
-#     delta_path = "s3a://orders-for-dispatch/bronze/"
-
-#     # Initialize the StreamReader with the AWS session and Spark session
-#     stream_reader = StreamReader(
-#         aws_session=aws_session,
-#         spark=spark,
-#         stream_name=stream_name,
-#         delta_path=delta_path,
-#         shard_iterator_type='LATEST',  # Try changing this to 'TRIM_HORIZON' or 'AT_TIMESTAMP'
-#         batch_size=10,
-#         schema=schema
-#     )
-
-#     # Continuously read batches of records from Kinesis and create DataFrames
-#     stream_reader.read_kinesis_records()
-
-# if __name__ == "__main__":
-#     main()
-
-# import logging
-# import os
-# import time
-# from pyspark.sql.types import StructType, StructField, StringType, DoubleType
-# from route_optimizer.awsmanager import AWSSessionManager
-# from route_optimizer.consumer import StreamReader
-# from route_optimizer.sparkmanager import SparkSessionManager
-# from route_optimizer.dispatcher import Dispatcher
-# from prefect import task, flow
-
-# # Set up the logger
-# logger = logging.getLogger(__name__)
-# logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-# # Set Prefect Cloud API key
-# os.environ["PREFECT_API_KEY"] = "your-prefect-api-key"
-
-# def load_config():
-#     """
-#     Load configuration from environment variables or a configuration file.
-#     """
-#     config = {
-#         "env_file": os.getenv("ENV_FILE", "path/to/.env"),
-#         "stream_name": os.getenv("STREAM_NAME", "OrderStreamForDispatching"),
-#         "bronze_table_path": os.getenv("BRONZE_TABLE_PATH", "s3a://orders-for-dispatch/bronze"),
-#         "silver_table_path": os.getenv("SILVER_TABLE_PATH", "s3a://orders-for-dispatch/silver"),
-#         "weight_threshold": float(os.getenv("WEIGHT_THRESHOLD", 10)),
-#         "volume_threshold": float(os.getenv("VOLUME_THRESHOLD", 500)),
-#         "time_threshold": int(os.getenv("TIME_THRESHOLD", 60 * 45)),
-#         "buffer_limit": int(os.getenv("BUFFER_LIMIT", 10000)),
-#         "batch_size": int(os.getenv("BATCH_SIZE", 10)),
-#         "shard_iterator_type": os.getenv("SHARD_ITERATOR_TYPE", 'TRIM_HORIZON'),
-#         "stream_reader_duration": int(os.getenv("STREAM_READER_DURATION", 10))  # Duration in seconds
-#     }
-#     return config
-
-# def initialize_aws_session(env_file):
-#     """
-#     Initialize AWS Session Manager.
-#     """
-#     aws_session = AWSSessionManager(env_file=env_file)
-#     logger.info("AWS Session Manager initialized.")
-#     return aws_session
-
-# def initialize_spark_session(aws_credentials):
-#     """
-#     Initialize Spark session.
-#     """
-#     spark_manager = SparkSessionManager(aws_credentials=aws_credentials)
-#     spark = spark_manager.spark
-#     logger.info("Spark session initialized.")
-#     return spark
-
-# def define_schema():
-#     """
-#     Define the schema for the DataFrame.
-#     """
-#     schema = StructType([
-#         StructField("order_id", StringType(), True),
-#         StructField("customer_id", StringType(), True),
-#         StructField("total_weight", DoubleType(), True),
-#         StructField("total_volume", DoubleType(), True),
-#         StructField("total_price", DoubleType(), True),
-#         StructField("order_timestamp", StringType(), True),
-#         StructField("status", StringType(), True),
-#         StructField("lat", DoubleType(), True),
-#         StructField("lon", DoubleType(), True)
-#     ])
-#     return schema
-
-# @task
-# def start_stream_reader(config, aws_session, spark, schema):
-#     """
-#     Start the StreamReader to read records from Kinesis and write to the bronze Delta table.
-#     """
-#     stream_reader = StreamReader(
-#         aws_session=aws_session,
-#         spark=spark,
-#         stream_name=config["stream_name"],
-#         delta_path=config["bronze_table_path"],
-#         shard_iterator_type=config["shard_iterator_type"],
-#         batch_size=config["batch_size"],
-#         schema=schema
-#     )
-#     stream_reader.read_kinesis_records()
-
-# @task
-# def start_dispatcher(config, spark, schema):
-#     """
-#     Start the Dispatcher to read from the bronze Delta table, process records, and write to the silver Delta table.
-#     """
-#     dispatcher = Dispatcher(
-#         spark=spark,
-#         schema=schema,
-#         delta_table_path=config["bronze_table_path"],
-#         dispatch_table_path=config["silver_table_path"],
-#         weight_threshold=config["weight_threshold"],
-#         volume_threshold=config["volume_threshold"],
-#         time_threshold=config["time_threshold"],
-#         buffer_limit=config["buffer_limit"]
-#     )
-#     try:
-#         dispatcher.read_and_dispatch_orders()
-#     except Exception as exc:
-#         logger.error(f"Error occurred during dispatching: {exc}")
-#         raise
-
-# @flow(name="Order Processing Flow")
-# def order_processing_flow():
-#     try:
-#         # Load configuration
-#         config = load_config()
-
-#         # Initialize AWS Session Manager
-#         aws_session = initialize_aws_session(config["env_file"])
-
-#         # AWS credentials
-#         aws_credentials = {
-#             "aws_access_key_id": aws_session.aws_credentials["aws_access_key_id"],
-#             "aws_secret_access_key": aws_session.aws_credentials["aws_secret_access_key"],
-#             "aws_session_token": aws_session.aws_credentials["aws_session_token"],
-#             "aws_region": aws_session.aws_credentials["aws_region"]
-#         }
-
-#         # Initialize Spark session
-#         spark = initialize_spark_session(aws_credentials)
-
-#         # Define the schema for the DataFrame
-#         schema = define_schema()
-
-#         # Start StreamReader task
-#         start_stream_reader(config, aws_session, spark, schema)
-
-#         # Introduce a delay to allow StreamReader to run for a specified duration
-#         logger.info(f"StreamReader will run for {config['stream_reader_duration']} seconds.")
-#         time.sleep(config['stream_reader_duration'])  # Sleep for the specified duration
-
-#         # Start Dispatcher task
-#         start_dispatcher(config, spark, schema)
-
-#     except Exception as exc:
-#         logger.error(f"An error occurred: {exc}")
-#         raise
-
-# if __name__ == "__main__":
-#     order_processing_flow()
-
-# import logging
-# import os
-# import time
-# from pyspark.sql.types import StructType, StructField, StringType, DoubleType
-# from route_optimizer.awsmanager import AWSSessionManager
-# from route_optimizer.consumer import StreamReader
-# from route_optimizer.sparkmanager import SparkSessionManager
-# from route_optimizer.dispatcher import Dispatcher
-# from route_optimizer.optimizer import RouteOptimizer
-# from prefect import task, flow
-
-# # Set up the logger
-# logger = logging.getLogger(__name__)
-# logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-# # Set Prefect Cloud API key
-# os.environ["PREFECT_API_KEY"] = "your-prefect-api-key"
-
-# def load_config():
-#     config = {
-#         "env_file": os.getenv("ENV_FILE", ".env"),
-#         "stream_name": os.getenv("STREAM_NAME", "OrderStreamForDispatching"),
-#         "bronze_table_path": os.getenv("BRONZE_TABLE_PATH", "s3a://dispatch/bronze"),
-#         "silver_table_path": os.getenv("SILVER_TABLE_PATH", "s3a://dispatch/silver"),
-#         "weight_threshold": float(os.getenv("WEIGHT_THRESHOLD", 10)),
-#         "volume_threshold": float(os.getenv("VOLUME_THRESHOLD", 500)),
-#         "time_threshold": int(os.getenv("TIME_THRESHOLD", 60 * 45)),
-#         "buffer_limit": int(os.getenv("BUFFER_LIMIT", 10000)),
-#         "batch_size": int(os.getenv("BATCH_SIZE", 10)),
-#         "shard_iterator_type": os.getenv("SHARD_ITERATOR_TYPE", 'LATEST'),
-#         "stream_reader_duration": int(os.getenv("STREAM_READER_DURATION", 10)),
-#         "routify_token": os.getenv("ROUTIFY_TOKEN"),
-#         "bucket_name": 'orders-for-dispatch',
-#         "folder_name": 'gold-optimization/',
-#         "depots": [
-#             {"id": "depot_1", "name": "San Sebastian de los Reyes", "lat": 40.54510, "lng": -3.61184},
-#             {"id": "depot_2", "name": "Alcorcón", "lat": 40.350370, "lng": -3.855863},
-#             {"id": "depot_3", "name": "Vallecas", "lat": 40.36977, "lng": -3.59670}
-#         ],
-#         "fleet_params": {
-#             "num_drivers": 18,
-#             "shift_start": "9:00",
-#             "shift_end": "18:00",
-#             "weight": 1500,
-#             "volume": 1500,
-#             "drivers_per_depot": 6
-#         }
-#     }
-#     return config
-
-# def initialize_aws_session(env_file):
-#     aws_session = AWSSessionManager(env_file=env_file)
-#     logger.info("AWS Session Manager initialized.")
-#     return aws_session
-
-# def initialize_spark_session(aws_credentials):
-#     spark_manager = SparkSessionManager(aws_credentials=aws_credentials)
-#     spark = spark_manager.spark
-#     logger.info("Spark session initialized.")
-#     return spark
-
-# def define_schema():
-#     schema = StructType([
-#         StructField("order_id", StringType(), True),
-#         StructField("customer_id", StringType(), True),
-#         StructField("total_weight", DoubleType(), True),
-#         StructField("total_volume", DoubleType(), True),
-#         StructField("total_price", DoubleType(), True),
-#         StructField("order_timestamp", StringType(), True),
-#         StructField("status", StringType(), True),
-#         StructField("lat", DoubleType(), True),
-#         StructField("lon", DoubleType(), True)
-#     ])
-#     return schema
-
-# @task
-# def start_stream_reader(config, aws_session, spark, schema):
-# #     stream_reader = StreamReader(
-# #         aws_session=aws_session,
-# #         spark=spark,
-# #         stream_name=config["stream_name"],
-# #         delta_path=config["bronze_table_path"],
-# #         shard_iterator_type=config["shard_iterator_type"],
-# #         batch_size=config["batch_size"],
-# #         schema=schema
-# #     )
-# #     stream_reader.read_kinesis_records(config["stream_reader_duration"])
-#     pass
-
-# @task
-# def start_dispatcher(config, spark, schema):
-#     dispatcher = Dispatcher(
-#         spark=spark,
-#         schema=schema,
-#         bronze_table_path=config["bronze_table_path"],
-#         silver_table_path=config["silver_table_path"],
-#         weight_threshold=config["weight_threshold"],
-#         volume_threshold=config["volume_threshold"],
-#         time_threshold=config["time_threshold"],
-#         buffer_limit=config["buffer_limit"]
-#         )
-#     try:
-#         dispatcher.process_orders()
-#     except Exception as exc:
-#         logger.error(f"Error occurred during dispatching: {exc}")
-#         raise
-#     pass
-
-# @task
-# def start_optimizer(config, spark, aws_session):
-#     # optimizer = RouteOptimizer(
-#     #     spark=spark,
-#     #     aws_session=aws_session,
-#     #     delta_table_path=config["silver_table_path"],
-#     #     routify_token=config["routify_token"],
-#     #     bucket_name=config["bucket_name"],
-#     #     folder_name=config["folder_name"],
-#     #     depots=config["depots"],
-#     #     fleet_params=config["fleet_params"]
-#     # )
-#     # optimizer.run_optimizer()
-#     pass
-
-# @flow(name="Order Processing Flow")
-# def order_processing_flow():
-#     try:
-#         config = load_config()
-#         aws_session = initialize_aws_session(config["env_file"])
-#         aws_credentials = {
-#             "aws_access_key_id": aws_session.aws_credentials["aws_access_key_id"],
-#             "aws_secret_access_key": aws_session.aws_credentials["aws_secret_access_key"],
-#             "aws_session_token": aws_session.aws_credentials["aws_session_token"],
-#             "aws_region": aws_session.aws_credentials["aws_region"]
-#         }
-#         spark = initialize_spark_session(aws_credentials)
-#         schema = define_schema()
-#         start_stream_reader(config, aws_session, spark, schema)
-#         logger.info(f"StreamReader will run for {config['stream_reader_duration']} seconds.")
-#         #time.sleep(config['stream_reader_duration'])
-#         start_dispatcher(config, spark, schema)
-#         start_optimizer(config, spark, aws_session)
-#     except Exception as exc:
-#         logger.error(f"An error occurred: {exc}")
-#         raise
-
-# if __name__ == "__main__":
-#     order_processing_flow()
-
 import logging
-import os
-from pyspark.sql.types import StructType, StructField, StringType, DoubleType
 from route_optimizer.awsmanager import AWSSessionManager
 from route_optimizer.sparkmanager import SparkSessionManager
+from route_optimizer.consumer import StreamReader
 from route_optimizer.dispatcher import Dispatcher
-from route_optimizer.pipeline_analytics import PipelineAnalytics
+from route_optimizer.config import load_config
+from route_optimizer.schema import define_bronze_schema
+from route_optimizer.etl_optimizer import BronzeOptimizerAccumulator
+from route_optimizer.preprocessing_optimizer import EtlOptimizer  # Ensure the class is in optimizer.py
+from route_optimizer.router import BatchOptimizer
+from route_optimizer.process_optimizer_solution import DeltaTableBuilder
+from route_optimizer.routes import RoutesBuilder  # Assuming the new class is in routes_builder.py
+from route_optimizer.pbi_tables import PBITableProcessor
 from prefect import task, flow
 
 # Set up the logger
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s')
 
-# Set Prefect Cloud API key
-os.environ["PREFECT_API_KEY"] = "your-prefect-api-key"
+# -------------------------------------------
+# Tasks
+# -------------------------------------------
 
-def load_config():
-    config = {
-        "env_file": os.getenv("ENV_FILE", ".env"),
-        "stream_name": os.getenv("STREAM_NAME", "OrderStreamForDispatching"),
-        "bronze_table_path": os.getenv("BRONZE_TABLE_PATH", "s3a://order-for-dispatch/bronze"),
-        "silver_table_path": os.getenv("SILVER_TABLE_PATH", "s3a://order-for-dispatch/silver"),
-        "weight_threshold": float(os.getenv("WEIGHT_THRESHOLD", 10)),
-        "volume_threshold": float(os.getenv("VOLUME_THRESHOLD", 500)),
-        "time_threshold": int(os.getenv("TIME_THRESHOLD", 60 * 45)),
-        "buffer_limit": int(os.getenv("BUFFER_LIMIT", 10000)),
-        "batch_size": int(os.getenv("BATCH_SIZE", 10)),
-        "shard_iterator_type": os.getenv("SHARD_ITERATOR_TYPE", 'LATEST'),
-        "stream_reader_duration": int(os.getenv("STREAM_READER_DURATION", 10)),
-        "routify_token": os.getenv("ROUTIFY_TOKEN"),
-        "bucket_name": 'orders-for-dispatch',
-        "folder_name": 'gold-optimization/',
-        "depots": [
-            {"id": "depot_1", "name": "San Sebastian de los Reyes", "lat": 40.54510, "lng": -3.61184},
-            {"id": "depot_2", "name": "Alcorcón", "lat": 40.350370, "lng": -3.855863},
-            {"id": "depot_3", "name": "Vallecas", "lat": 40.36977, "lng": -3.59670}
-        ],
-        "fleet_params": {
-            "num_drivers": 18,
-            "shift_start": "9:00",
-            "shift_end": "18:00",
-            "weight": 1500,
-            "volume": 1500,
-            "drivers_per_depot": 6
-        }
-    }
-    return config
-
+@task(persist_result=False)
 def initialize_aws_session(env_file):
-    aws_session = AWSSessionManager(env_file=env_file)
-    logger.info("AWS Session Manager initialized.")
-    return aws_session
+    """
+    Initializes the AWS session using the credentials from the env file.
+    """
+    try:
+        aws_session = AWSSessionManager(env_file=env_file)
+        logger.info("AWS Session Manager initialized.")
+        return aws_session
+    except Exception as e:
+        logger.error(f"Error initializing AWS session: {e}")
+        raise
 
+@task(persist_result=False)
 def initialize_spark_session(aws_credentials):
-    spark_manager = SparkSessionManager(aws_credentials=aws_credentials)
-    spark = spark_manager.spark
-    logger.info("Spark session initialized.")
-    return spark
+    """
+    Initializes the Spark session with the provided AWS credentials.
+    """
+    try:
+        spark_manager = SparkSessionManager(aws_credentials=aws_credentials)
+        spark = spark_manager.spark
+        logger.info("Spark session initialized.")
+        return spark
+    except Exception as e:
+        logger.error(f"Error initializing Spark session: {e}")
+        raise
 
-def define_schema():
-    schema = StructType([
-        StructField("order_id", StringType(), True),
-        StructField("customer_id", StringType(), True),
-        StructField("total_weight", DoubleType(), True),
-        StructField("total_volume", DoubleType(), True),
-        StructField("total_price", DoubleType(), True),
-        StructField("order_timestamp", StringType(), True),
-        StructField("status", StringType(), True),
-        StructField("lat", DoubleType(), True),
-        StructField("lon", DoubleType(), True)
-    ])
-    return schema
-
-@task
+@task()
 def start_stream_reader(config, aws_session, spark, schema):
-    stream_reader = StreamReader(
-        aws_session=aws_session,
-        spark=spark,
-        stream_name=config["stream_name"],
-        delta_path=config["bronze_table_path"],
-        shard_iterator_type=config["shard_iterator_type"],
-        batch_size=config["batch_size"],
-        schema=schema
-    )
-    stream_reader.read_kinesis_records(config["stream_reader_duration"])
-    pass
-
-@task
-def start_dispatcher(config, spark, schema):
-    dispatcher = Dispatcher(
-        spark=spark,
-        schema=schema,
-        bronze_table_path=config["bronze_table_path"],
-        silver_table_path=config["silver_table_path"],
-        weight_threshold=config["weight_threshold"],
-        volume_threshold=config["volume_threshold"],
-        time_threshold=config["time_threshold"],
-        buffer_limit=config["buffer_limit"]
-    )
+    """
+    Starts the StreamReader to read data from Kinesis and write it to the Bronze Delta table.
+    """
     try:
-        dispatcher.process_orders()
-    except Exception as exc:
-        logger.error(f"Error occurred during dispatching: {exc}")
+        stream_reader = StreamReader(
+            aws_session=aws_session,
+            spark=spark,
+            stream_name=config["stream_name"],
+            bronze_table_path=config["bronze_table_path"],
+            shard_iterator_type=config["shard_iterator_type"],
+            batch_size=config["batch_size"],
+            buffer_time=config["buffer_time"],
+            schema=schema
+        )
+        stream_reader.read_kinesis_records(duration=config["stream_reader_duration"])
+    except Exception as e:
+        logger.error(f"Error in StreamReader: {e}")
         raise
-    pass
 
-@task
-def start_optimizer(config, spark, aws_session):
-    optimizer = RouteOptimizer(
-        spark=spark,
-        aws_session=aws_session,
-        delta_table_path=config["silver_table_path"],
-        routify_token=config["routify_token"],
-        bucket_name=config["bucket_name"],
-        folder_name=config["folder_name"],
-        depots=config["depots"],
-        fleet_params=config["fleet_params"]
-    )
-    optimizer.run_optimizer()
-    pass
-
-@task
-def pipeline_analytics(config, spark):
-    analytics = PipelineAnalytics(
-        spark=spark,
-        silver_table_path=config["silver_table_path"],
-        routes_file_path="s3a://dispatched-orders/optimized-dispatched-gold/routes/",
-        pBI_parquet_path="s3a://dispatched-orders/optimized-dispatched-gold/pBI/",
-        delta_table_path="s3a://dispatched-orders/delta-table/"
-    )
+@task()
+def process_bronze_to_silver(config, spark):
+    """
+    Task to process data from the Bronze to Silver Delta table.
+    """
     try:
-        analytics.run()
-    except Exception as exc:
-        logger.error(f"Error occurred during pipeline analytics: {exc}")
+        dispatcher = Dispatcher(spark=spark, config=config)
+        dispatcher.process_orders_to_silver()
+    except Exception as e:
+        logger.error(f"Error in processing from Bronze to Silver: {e}")
         raise
+
+@task()
+def process_silver_to_gold(config, spark):
+    """
+    Task to process data from the Silver to Gold Delta table.
+    """
+    try:
+        dispatcher = Dispatcher(spark=spark, config=config)
+        dispatcher.process_orders_to_gold()
+    except Exception as e:
+        logger.error(f"Error in processing from Silver to Gold: {e}")
+        raise
+
+@task()
+def dispatcher_to_optimizer(config, spark):
+    """
+    Task to process data from the Gold to Bronze Optimizer.
+    """
+    try:
+        accumulator = BronzeOptimizerAccumulator(spark, config)
+        accumulator.orders_from_dispatcher_to_optimizer_bronze()
+    except Exception as e:
+        logger.error(f"Error in processing from Gold to Bronze Optimizer: {e}")
+        raise
+
+@task()
+def process_orders_in_optimizer(config, spark):
+    """
+    Task to process orders in the Optimizer.
+    """
+    try:
+        accumulator = BronzeOptimizerAccumulator(spark, config)
+        accumulator.process_orders_optimizer_from_bronze_to_silver()
+    except Exception as e:
+        logger.error(f"Error in processing orders in the Optimizer: {e}")
+        raise
+
+@task()
+def etl_optimizer(config, spark, aws_session):
+    """
+    Task to perform route optimization by utilizing the RouteOptimizer class.
+    """
+    try:
+        optimizer = EtlOptimizer(spark=spark, config=config, aws_session=aws_session)
+        optimizer.process_batches_and_optimize()
+    except Exception as e:
+        logger.error(f"Error during route optimization: {e}")
+        raise
+
+@task
+def optimize_routes(config, aws_session):
+    """
+    Task to optimize routes using BatchOptimizer.
+    """
+    try:
+        optimizer = BatchOptimizer(config, aws_session)
+        optimizer.process_jobs()
+    except Exception as e:
+        logger.error(f"Error optimizing routes: {e}")
+        raise
+
+@task
+def postprocessing(aws_session, spark, config):
+    """
+    Post-processing task using DeltaTableBuilder to handle analytics.
+    """
+    try:
+        analytics_processor = DeltaTableBuilder(spark=spark, config=config, aws_session=aws_session)
+        analytics_processor.process_and_save()
+    except Exception as e:
+        logger.error(f"Error during postprocessing: {e}")
+        raise
+
+@task
+def process_routes(config, aws_session, spark):
+    """
+    Task to process routes using the new RoutesBuilder class.
+    """
+    try:
+        routes_builder = RoutesBuilder(
+            spark=spark,
+            config=config,
+            aws_session=aws_session
+        )
+        routes_builder.process_and_save()
+    except Exception as e:
+        logger.error(f"Error processing routes: {e}")
+        raise
+
+@task
+def pBI_processor(config, spark):
+    """
+    Task to process routes using the new RoutesBuilder class.
+    """
+    try:
+        pBI_builder = PBITableProcessor(
+            spark=spark,
+            config=config,
+
+        )
+        pBI_builder.process_and_save()
+    except Exception as e:
+        logger.error(f"Error processing routes: {e}")
+        raise
+
+# -------------------------------------------
+# Flow
+# -------------------------------------------
 
 @flow(name="Order Processing Flow")
 def order_processing_flow():
+    """
+    The main flow of the application which initializes AWS, Spark,
+    starts the StreamReader, and processes data through Bronze, Silver, Gold, and Bronze Optimizer layers.
+    """
     try:
+        # Load configuration from config.py
         config = load_config()
-        aws_session = initialize_aws_session(config["env_file"])
-        aws_credentials = {
-            "aws_access_key_id": aws_session.aws_credentials["aws_access_key_id"],
-            "aws_secret_access_key": aws_session.aws_credentials["aws_secret_access_key"],
-            "aws_session_token": aws_session.aws_credentials["aws_session_token"],
-            "aws_region": aws_session.aws_credentials["aws_region"]
-        }
-        spark = initialize_spark_session(aws_credentials)
-        schema = define_schema()
 
-        start_stream_reader(config, aws_session, spark, schema)
-        logger.info(f"StreamReader will run for {config['stream_reader_duration']} seconds.")
-        # time.sleep(config['stream_reader_duration'])
-        start_dispatcher(config, spark, schema)
-        start_optimizer(config, spark, aws_session)
-        pipeline_analytics(config, spark)
-    except Exception as exc:
-        logger.error(f"An error occurred: {exc}")
+        # Initialize AWS session
+        aws_session = initialize_aws_session(config["env_file"])
+
+        # Extract AWS credentials
+        aws_credentials = aws_session.aws_credentials
+
+        # Initialize Spark session
+        spark = initialize_spark_session(aws_credentials)
+
+        # Define the schema for Bronze (if needed)
+        bronze_schema = define_bronze_schema()
+
+        # # Start the StreamReader task to read from Kinesis and write to Bronze Delta table
+        # try:
+        #     start_stream_reader(config, aws_session, spark, bronze_schema)
+        # except Exception as e:
+        #     logger.error(f"Error in StreamReader task: {e}")
+        #     raise
+
+        # # Process from Bronze to Silver
+        # try:
+        #     process_bronze_to_silver(config, spark)
+        # except Exception as e:
+        #     logger.error(f"Error processing from Bronze to Silver: {e}")
+        #     raise
+
+        # # Process from Silver to Gold
+        # try:
+        #     process_silver_to_gold(config, spark)
+        # except Exception as e:
+        #     logger.error(f"Error processing from Silver to Gold: {e}")
+        #     raise
+
+        # # Process from Gold to Bronze Optimizer
+        # try:
+        #     dispatcher_to_optimizer(config, spark)
+        # except Exception as e:
+        #     logger.error(f"Error processing from Gold to Bronze Optimizer: {e}")
+        #     raise
+
+        # # Process from Bronze to Silver Optimizer
+        # try:
+        #     process_orders_in_optimizer(config, spark)
+        # except Exception as e:
+        #     logger.error(f"Error processing orders in Optimizer: {e}")
+        #     raise
+
+        # # Route optimization
+        # try:
+        #     etl_optimizer(config, spark, aws_session)
+        # except Exception as e:
+        #     logger.error(f"Error in route optimization: {e}")
+        #     raise
+
+        # # Optimize routes
+        # try:
+        #     optimize_routes(config, aws_session)
+        # except Exception as e:
+        #     logger.error(f"Error optimizing routes: {e}")
+        #     raise
+
+        # # Post-processing task for analytics
+        # try:
+        #     postprocessing(aws_session, spark, config)
+        # except Exception as e:
+        #     logger.error(f"Error during postprocessing: {e}")
+        #     raise
+
+        # # Process the routes using RoutesBuilder
+        # try:
+        #     process_routes(config, aws_session, spark)
+        # except Exception as e:
+        #     logger.error(f"Error processing routes: {e}")
+        #     raise
+
+        # Process the routes using RoutesBuilder
+        try:
+            pBI_processor(config, spark)
+        except Exception as e:
+            logger.error(f"Error processing routes: {e}")
+            raise
+
+    except Exception as e:
+        logger.error(f"An error occurred in the order processing flow: {e}")
         raise
 
 if __name__ == "__main__":
