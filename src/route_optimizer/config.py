@@ -34,7 +34,7 @@ def load_config():
         "time_threshold": int(os.getenv("TIME_THRESHOLD", 60 * 45)),  # 45 minutes
         "buffer_limit": int(os.getenv("BUFFER_LIMIT", 10000)),
         "batch_size": int(os.getenv("BATCH_SIZE", 10000)),
-        "buffer_time": int(os.getenv("BUFFER_TIME", 60)),  # in seconds
+        "buffer_time": int(os.getenv("BUFFER_TIME", 360)),  # in seconds
         "shard_iterator_type": os.getenv("SHARD_ITERATOR_TYPE", 'LATEST'),
         "stream_reader_duration": int(os.getenv("STREAM_READER_DURATION", 5 * 60)),  # in seconds
         "max_iterations": int(os.getenv("MAX_ITERATIONS", 10000)),
@@ -72,8 +72,19 @@ def load_config():
         "optimized_files": os.getenv("OPTIMIZED_FILES", "s3a://dispatched-orders/gold/optimized"),
         "delta_table_path": os.getenv("DELTA_TABLE_PATH","s3a://dispatched-orders/gold/general"),
         "routes": os.getenv("ROUTES_PATH","s3a://dispatched-orders/gold/routes"),
-        "pBI_files": os.getenv("pBI_PATH","s3a://dispatched-orders/gold/pBI")
+        "pBI_data": os.getenv("PBI_DATA","s3a://dispatched-orders/gold/pBI/data/"),
+        "pBI_data_athena": os.getenv("PBI_DATA_ATHENA","s3://dispatched-orders/gold/pBI/data"),
+        "pBI_table": os.getenv("PBI_TABLES","s3a://dispatched-orders/gold/pBI/tables"),
+        "pBI_table_athena": os.getenv("PBI_TABLES_ATHENA","s3://dispatched-orders/gold/pBI/tables"),
+        "order_table": os.getenv("DISPATCHED_ORDERS_TABLES","s3://dispatched-orders/gold/pBI/dispatched_orders"),
+        "athena_db_name": os.getenv("ATHENA_DB_NAME", 'dispatched_db'),  # Athena database name
+        "athena_table_name": os.getenv("ATHENA_TABLE_NAME", 'data'),  # Athena table name
+        "distances_table": os.getenv("DISTANCES_TABLE", "s3://dispatched-orders/gold/pBI/tables/distances/"),  # Table for distances
+        "solution_table": os.getenv("SOLUTION_TABLE", "s3://dispatched-orders/gold/pBI/tables/solution/"),  # Table for solution
+        "summary_table": os.getenv("SUMMARY_TABLE", "s3://dispatched-orders/gold/pBI/tables/summary/"),  # Table for general summar
+        "view_path": os.getenv("VIEW_PATH", "s3://dispatched-orders/gold/pBI/tables/views/"),
     }
-    return config
 
+
+    return config
 

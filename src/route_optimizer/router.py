@@ -21,6 +21,7 @@ class BatchOptimizer:
         self.optimized_folder = config["optimized_path"]  # Gold layer optimized folder
         self.bucket_name = config["optimization_bucket"]
 
+
     def list_dispatching_jobs(self):
         """
         List all job folders in the dispatching folder from S3.
@@ -40,7 +41,7 @@ class BatchOptimizer:
             logger.error(f"Error listing jobs in dispatching folder: {str(e)}")
             raise e
 
-    @retry(wait=wait_fixed(60), stop=stop_after_delay(30*60*60))  # Retry every minute, stop after 1 hour
+    #@retry(wait=wait_fixed(60), stop=stop_after_delay(30*60*60))  # Retry every minute, stop after 1 hour
     def check_job_status(self, job_id):
         """
         Poll Routific to check the status of a job every minute until it is finished.
@@ -149,7 +150,7 @@ class BatchOptimizer:
             logger.info("No jobs found to process. Exiting.")
             return  # Stop the process if no jobs are found.
 
-        for job_id in jobs:
+        for idx, job_id in enumerate(jobs):
             logger.info(f"Processing job {job_id}...")
             try:
                 # Poll Routific for the job status every minute until it finishes
@@ -162,15 +163,10 @@ class BatchOptimizer:
                         self.store_results_in_gold(job_id, result)
                         self.move_processed_job(job_id)  # Move the job after it is processed
 
-                # Check if there are more jobs to process
-                remaining_jobs = self.list_dispatching_jobs()
-                if remaining_jobs:
-                    # Wait for 45 seconds before processing the next batch
+                # Check if there are more jobs to process after this job
+                if idx < len(jobs) - 1:  # If there are more jobs left, wait before processing the next one
                     logger.info("Waiting for 45 seconds before processing the next batch...")
-                    time.sleep(45*60)
-                else:
-                    logger.info("No more jobs found. Exiting.")
-                    break  # Exit if no more jobs remain to be processed
+                    time.sleep(45)  # Adjust the wait time here
 
             except RetryError:
                 logger.error(f"Job {job_id} did not finish within the retry limit. Skipping this job.")

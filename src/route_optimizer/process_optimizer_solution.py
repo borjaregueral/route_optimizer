@@ -43,7 +43,7 @@ class DeltaTableBuilder:
                                             when(col("timing.finishedProcessingAt").isNotNull(), 
                                                 date_format(
                                                     expr("from_unixtime(round(unix_timestamp(to_timestamp(timing.finishedProcessingAt)) / 1800) * 1800)"), 
-                                                    "yyyy-MM-dd-HH:mm"))
+                                                    "yyyy-MM-dd-HH-mm"))
                                             .otherwise("UNKNOWN"))
                             .repartition(ideal_partitions)
                             .persist(self.storage_level))
@@ -94,6 +94,7 @@ class DeltaTableBuilder:
             df_transformed = self.transform_data(df)
             self.write_to_delta(df_transformed)
             df_transformed.unpersist()
+            
             logger.info("Process completed successfully")
         except Exception as e:
             logger.error(f"Error in process_and_save: {e}")

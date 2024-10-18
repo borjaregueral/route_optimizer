@@ -6,16 +6,18 @@ from route_optimizer.dispatcher import Dispatcher
 from route_optimizer.config import load_config
 from route_optimizer.schema import define_bronze_schema
 from route_optimizer.etl_optimizer import BronzeOptimizerAccumulator
-from route_optimizer.preprocessing_optimizer import EtlOptimizer  # Ensure the class is in optimizer.py
+from route_optimizer.preprocessing_optimizer import EtlOptimizer
 from route_optimizer.router import BatchOptimizer
 from route_optimizer.process_optimizer_solution import DeltaTableBuilder
-from route_optimizer.routes import RoutesBuilder  # Assuming the new class is in routes_builder.py
-from route_optimizer.pbi_tables import PBITableProcessor
+from route_optimizer.routes import RoutesBuilder
+from route_optimizer.pbi_data import PBITableProcessor
+from route_optimizer.pbi_analytics import PBIAthenaTableManager
 from prefect import task, flow
 
 # Set up the logger
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s')
+
 
 # -------------------------------------------
 # Tasks
@@ -23,9 +25,6 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 
 @task(persist_result=False)
 def initialize_aws_session(env_file):
-    """
-    Initializes the AWS session using the credentials from the env file.
-    """
     try:
         aws_session = AWSSessionManager(env_file=env_file)
         logger.info("AWS Session Manager initialized.")
@@ -34,11 +33,9 @@ def initialize_aws_session(env_file):
         logger.error(f"Error initializing AWS session: {e}")
         raise
 
+
 @task(persist_result=False)
 def initialize_spark_session(aws_credentials):
-    """
-    Initializes the Spark session with the provided AWS credentials.
-    """
     try:
         spark_manager = SparkSessionManager(aws_credentials=aws_credentials)
         spark = spark_manager.spark
@@ -48,11 +45,9 @@ def initialize_spark_session(aws_credentials):
         logger.error(f"Error initializing Spark session: {e}")
         raise
 
+
 @task()
 def start_stream_reader(config, aws_session, spark, schema):
-    """
-    Starts the StreamReader to read data from Kinesis and write it to the Bronze Delta table.
-    """
     try:
         stream_reader = StreamReader(
             aws_session=aws_session,
@@ -69,11 +64,9 @@ def start_stream_reader(config, aws_session, spark, schema):
         logger.error(f"Error in StreamReader: {e}")
         raise
 
+
 @task()
 def process_bronze_to_silver(config, spark):
-    """
-    Task to process data from the Bronze to Silver Delta table.
-    """
     try:
         dispatcher = Dispatcher(spark=spark, config=config)
         dispatcher.process_orders_to_silver()
@@ -81,11 +74,9 @@ def process_bronze_to_silver(config, spark):
         logger.error(f"Error in processing from Bronze to Silver: {e}")
         raise
 
+
 @task()
 def process_silver_to_gold(config, spark):
-    """
-    Task to process data from the Silver to Gold Delta table.
-    """
     try:
         dispatcher = Dispatcher(spark=spark, config=config)
         dispatcher.process_orders_to_gold()
@@ -93,11 +84,9 @@ def process_silver_to_gold(config, spark):
         logger.error(f"Error in processing from Silver to Gold: {e}")
         raise
 
+
 @task()
 def dispatcher_to_optimizer(config, spark):
-    """
-    Task to process data from the Gold to Bronze Optimizer.
-    """
     try:
         accumulator = BronzeOptimizerAccumulator(spark, config)
         accumulator.orders_from_dispatcher_to_optimizer_bronze()
@@ -105,11 +94,9 @@ def dispatcher_to_optimizer(config, spark):
         logger.error(f"Error in processing from Gold to Bronze Optimizer: {e}")
         raise
 
+
 @task()
 def process_orders_in_optimizer(config, spark):
-    """
-    Task to process orders in the Optimizer.
-    """
     try:
         accumulator = BronzeOptimizerAccumulator(spark, config)
         accumulator.process_orders_optimizer_from_bronze_to_silver()
@@ -117,11 +104,9 @@ def process_orders_in_optimizer(config, spark):
         logger.error(f"Error in processing orders in the Optimizer: {e}")
         raise
 
+
 @task()
 def etl_optimizer(config, spark, aws_session):
-    """
-    Task to perform route optimization by utilizing the RouteOptimizer class.
-    """
     try:
         optimizer = EtlOptimizer(spark=spark, config=config, aws_session=aws_session)
         optimizer.process_batches_and_optimize()
@@ -129,11 +114,9 @@ def etl_optimizer(config, spark, aws_session):
         logger.error(f"Error during route optimization: {e}")
         raise
 
-@task
+
+@task()
 def optimize_routes(config, aws_session):
-    """
-    Task to optimize routes using BatchOptimizer.
-    """
     try:
         optimizer = BatchOptimizer(config, aws_session)
         optimizer.process_jobs()
@@ -141,11 +124,9 @@ def optimize_routes(config, aws_session):
         logger.error(f"Error optimizing routes: {e}")
         raise
 
-@task
+
+@task()
 def postprocessing(aws_session, spark, config):
-    """
-    Post-processing task using DeltaTableBuilder to handle analytics.
-    """
     try:
         analytics_processor = DeltaTableBuilder(spark=spark, config=config, aws_session=aws_session)
         analytics_processor.process_and_save()
@@ -153,11 +134,9 @@ def postprocessing(aws_session, spark, config):
         logger.error(f"Error during postprocessing: {e}")
         raise
 
-@task
+
+@task()
 def process_routes(config, aws_session, spark):
-    """
-    Task to process routes using the new RoutesBuilder class.
-    """
     try:
         routes_builder = RoutesBuilder(
             spark=spark,
@@ -169,21 +148,36 @@ def process_routes(config, aws_session, spark):
         logger.error(f"Error processing routes: {e}")
         raise
 
-@task
+
+@task()
 def pBI_processor(config, spark):
-    """
-    Task to process routes using the new RoutesBuilder class.
-    """
     try:
         pBI_builder = PBITableProcessor(
             spark=spark,
             config=config,
-
         )
         pBI_builder.process_and_save()
     except Exception as e:
-        logger.error(f"Error processing routes: {e}")
+        logger.error(f"Error processing PBI data: {e}")
         raise
+
+
+@task(result_serializer="json", persist_result=False)
+def pBI_tables(config, aws_session, spark):
+    try:
+
+        pBI_analytics_manager = PBIAthenaTableManager(
+            aws_session=aws_session,
+            config=config,
+            spark = spark
+
+        )
+        pBI_analytics_manager.process_pbi_data()
+        logger.info("PBI data processed successfully.")
+    except Exception as e:
+        logger.error(f"Error processing PBI data: {e}")
+        raise
+
 
 # -------------------------------------------
 # Flow
@@ -191,99 +185,57 @@ def pBI_processor(config, spark):
 
 @flow(name="Order Processing Flow")
 def order_processing_flow():
-    """
-    The main flow of the application which initializes AWS, Spark,
-    starts the StreamReader, and processes data through Bronze, Silver, Gold, and Bronze Optimizer layers.
-    """
     try:
-        # Load configuration from config.py
+        # Load configuration
         config = load_config()
 
         # Initialize AWS session
         aws_session = initialize_aws_session(config["env_file"])
 
-        # Extract AWS credentials
-        aws_credentials = aws_session.aws_credentials
-
         # Initialize Spark session
-        spark = initialize_spark_session(aws_credentials)
+        spark = initialize_spark_session(aws_session.aws_credentials)
 
-        # Define the schema for Bronze (if needed)
+        # Define schema for Bronze table
         bronze_schema = define_bronze_schema()
 
-        # # Start the StreamReader task to read from Kinesis and write to Bronze Delta table
-        # try:
-        #     start_stream_reader(config, aws_session, spark, bronze_schema)
-        # except Exception as e:
-        #     logger.error(f"Error in StreamReader task: {e}")
-        #     raise
+        # # Start stream reader task
+        # start_stream_reader(config, aws_session, spark, bronze_schema)
 
-        # # Process from Bronze to Silver
-        # try:
-        #     process_bronze_to_silver(config, spark)
-        # except Exception as e:
-        #     logger.error(f"Error processing from Bronze to Silver: {e}")
-        #     raise
+        # # Process Bronze to Silver
+        # process_bronze_to_silver(config, spark)
 
-        # # Process from Silver to Gold
-        # try:
-        #     process_silver_to_gold(config, spark)
-        # except Exception as e:
-        #     logger.error(f"Error processing from Silver to Gold: {e}")
-        #     raise
+        # # Process Silver to Gold
+        # process_silver_to_gold(config, spark)
 
-        # # Process from Gold to Bronze Optimizer
-        # try:
-        #     dispatcher_to_optimizer(config, spark)
-        # except Exception as e:
-        #     logger.error(f"Error processing from Gold to Bronze Optimizer: {e}")
-        #     raise
+        # # Process Gold to Bronze optimizer
+        # dispatcher_to_optimizer(config, spark)
 
-        # # Process from Bronze to Silver Optimizer
-        # try:
-        #     process_orders_in_optimizer(config, spark)
-        # except Exception as e:
-        #     logger.error(f"Error processing orders in Optimizer: {e}")
-        #     raise
+        # # Process Bronze to Silver optimizer
+        # process_orders_in_optimizer(config, spark)
 
         # # Route optimization
-        # try:
-        #     etl_optimizer(config, spark, aws_session)
-        # except Exception as e:
-        #     logger.error(f"Error in route optimization: {e}")
-        #     raise
+        # etl_optimizer(config, spark, aws_session)
 
         # # Optimize routes
-        # try:
-        #     optimize_routes(config, aws_session)
-        # except Exception as e:
-        #     logger.error(f"Error optimizing routes: {e}")
-        #     raise
+        # optimize_routes(config, aws_session)
 
         # # Post-processing task for analytics
-        # try:
-        #     postprocessing(aws_session, spark, config)
-        # except Exception as e:
-        #     logger.error(f"Error during postprocessing: {e}")
-        #     raise
+        # postprocessing(aws_session, spark, config)
 
-        # # Process the routes using RoutesBuilder
-        # try:
-        #     process_routes(config, aws_session, spark)
-        # except Exception as e:
-        #     logger.error(f"Error processing routes: {e}")
-        #     raise
+        # # Process routes with RoutesBuilder
+        # process_routes(config, aws_session, spark)
 
-        # Process the routes using RoutesBuilder
-        try:
-            pBI_processor(config, spark)
-        except Exception as e:
-            logger.error(f"Error processing routes: {e}")
-            raise
+        # # # Process PBI data
+        # pBI_processor(config, spark)
+
+        # Create and update Athena tables for PBI
+        pBI_tables(config, aws_session, spark)
 
     except Exception as e:
-        logger.error(f"An error occurred in the order processing flow: {e}")
+        logger.error(f"An error occurred during the flow: {e}")
         raise
 
+
+# Entry point
 if __name__ == "__main__":
     order_processing_flow()

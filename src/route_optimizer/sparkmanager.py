@@ -16,7 +16,7 @@ class SparkSessionManager:
         app_name: str,
         driver_memory: str = "4g",
         executor_memory: str = "4g",
-        executor_cores: str = "4",
+        executor_cores: str = "8",
         executor_instances: str = "4",
         memory_overhead: str = "4g",
         shuffle_partitions: str = "500",
@@ -71,7 +71,16 @@ class SparkSessionManager:
                     .config("spark.hadoop.fs.s3a.fast.upload.active.blocks", fast_upload_active_blocks) 
                     .config("spark.hadoop.fs.s3a.fast.upload.active.blocks.threshold", fast_upload_active_blocks_threshold) 
                     .config("spark.hadoop.fs.s3a.fast.upload.buffer.size", fast_upload_buffer_size) 
-                    .config("spark.sql.adaptive.enabled", "false") 
+                    .config("spark.sql.adaptive.enabled", "false")
+                    .config("spark.hadoop.fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider")
+                    .config("spark.executor.logs.rolling.strategy", "size")
+                    .config("spark.executor.logs.rolling.maxRetainedFiles", "5")
+                    .config("spark.executor.logs.rolling.maxSize", "10mb")
+                    .config("spark.sql.adaptive.enabled", "true")
+                    .config("spark.hadoop.fs.s3a.path.style.access", "true")
+                    .config("spark.hadoop.fs.s3a.connection.ssl.enabled", "true")
+                    .config("spark.hadoop.fs.s3a.multipart.threshold", "104857600")
+
                     .getOrCreate()
                 )
 
@@ -82,4 +91,3 @@ class SparkSessionManager:
                 raise
 
         return self.spark
-

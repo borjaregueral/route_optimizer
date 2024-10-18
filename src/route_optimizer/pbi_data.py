@@ -1,4 +1,4 @@
-from pyspark.sql.functions import col
+from pyspark.sql.functions import col, to_timestamp
 from pyspark.sql import SparkSession
 from delta.tables import DeltaTable
 from route_optimizer.config import load_config
@@ -21,8 +21,7 @@ class PBITableProcessor:
         """
         self.spark = spark
         self.config = config
-        #self.s3_client = aws_session.s3_client
-        self.pbi_parquet_path = config["pBI_files"]  # Path to store the cleaned Parquet files
+        self.pbi_parquet_path = config["pBI_data"]  # Path to store the cleaned Parquet files
         self.delta_path = config["delta_table_path"]  # Path to the Delta table
 
     def load_delta_table(self):
@@ -70,7 +69,15 @@ class PBITableProcessor:
         """
         try:
             logger.info(f"Writing the transformed data to {self.pbi_parquet_path}, partitioned by 'dispatched_hour'")
-            df_transformed.write.mode('overwrite').partitionBy("dispatched_hour").parquet(self.pbi_parquet_path)
+
+
+            # Write the DataFrame to Parquet, partitioned by 'finished_at'
+            (df_transformed
+                            .write.mode('overwrite')
+                            .partitionBy("finished_at")
+                            .parquet(self.pbi_parquet_path)
+            )
+
             logger.info("Data written to Parquet successfully")
         except Exception as e:
             logger.error(f"Error writing data to Parquet: {e}")

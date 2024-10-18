@@ -92,7 +92,7 @@ class Dispatcher:
                 .option("path", self.silver_table)
                 .option("checkpointLocation", self.silver_checkpoint)
                 .start()
-                .awaitTermination(timeout=60))
+                .awaitTermination(timeout=300))
             
         except Exception as e:
             logger.error(f"Error processing orders to Silver: {e}")
@@ -132,7 +132,7 @@ class Dispatcher:
                 .option("checkpointLocation", self.gold_checkpoint)
                 .partitionBy("hour")  # Partition by the hour
                 .start()
-                .awaitTermination(timeout=60))
+                .awaitTermination(timeout=300))
             except Exception as e:
                 logger.error(f"Error processing orders to Gold: {e}")
                 raise
