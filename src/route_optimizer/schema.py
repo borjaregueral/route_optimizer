@@ -105,6 +105,7 @@ def define_silver_schema():
             ])
         ), True)
     ])
+    
     return schema
 
 
