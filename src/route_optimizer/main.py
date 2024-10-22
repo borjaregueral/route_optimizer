@@ -199,34 +199,34 @@ def order_processing_flow():
         bronze_schema = define_bronze_schema()
 
         # # Start stream reader task
-        # start_stream_reader(config, aws_session, spark, bronze_schema)
+        start_stream_reader(config, aws_session, spark, bronze_schema)
 
         # # Process Bronze to Silver
-        # process_bronze_to_silver(config, spark)
+        process_bronze_to_silver(config, spark)
 
         # # Process Silver to Gold
-        # process_silver_to_gold(config, spark)
+        process_silver_to_gold(config, spark)
 
         # # Process Gold to Bronze optimizer
-        # dispatcher_to_optimizer(config, spark)
+        dispatcher_to_optimizer(config, spark)
 
         # # Process Bronze to Silver optimizer
-        # process_orders_in_optimizer(config, spark)
+        process_orders_in_optimizer(config, spark)
 
         # # Route optimization
-        # etl_optimizer(config, spark, aws_session)
+        etl_optimizer(config, spark, aws_session)
 
         # # Optimize routes
-        # optimize_routes(config, aws_session)
+        optimize_routes(config, aws_session)
 
         # # Post-processing task for analytics
-        # postprocessing(aws_session, spark, config)
+        postprocessing(aws_session, spark, config)
 
         # # Process routes with RoutesBuilder
-        # process_routes(config, aws_session, spark)
+        process_routes(config, aws_session, spark)
 
         # # # Process PBI data
-        # pBI_processor(config, spark)
+        pBI_processor(config, spark)
 
         # Create and update Athena tables for PBI
         pBI_tables(config, aws_session, spark)
